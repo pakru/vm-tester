@@ -1,6 +1,6 @@
 #!/usr/local/bin/python3.5
 
-import paramiko
+#import paramiko
 import time
 import sys
 import os
@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import requests
 import signal
 import pjSIP_py.pjUA as pjua
-#import ssh_cocon.ssh_cocon as ccn
+import ssh_cocon.ssh_cocon as ccn
 
 
 login = str(os.environ.get('COCON_USER'))
@@ -42,176 +42,52 @@ vmPassword = "1234"
 
 masterSIPpass = str(os.environ.get('VM_FIRST_NUMBER'))
 SIPgroup = str(os.environ.get('SIP_GROUP'))
-#restHost = str(os.environ.get('TC_REST_HOST'))
-#restPort = str(os.environ.get('TC_REST_PORT'))
-#testTemplateName=str(os.environ.get('TC_TEMPLATE_NAME'))
 
-#tcPath = str(os.environ.get('TC_PATH'))
-#tcRoutingName='test_tc'
 
-#tcExtTrunkName='toSIPp'
-#tcExtTrunkIP=str(os.environ.get('TC_EXT_TRUNK_IP'))
-#tcExtTrunkPort=str(os.environ.get('TC_EXT_TRUNK_PORT'))
-
-'''
-tcClientCount=str(os.environ.get('TC_CLIENT_COUNT'))
-tcClientNumberPrefix=str(os.environ.get('TC_CLIENT_NUMBER_PREFIX'))
-tcMembers='20{01-20}'
-tcExtMember = '2020'
-tcUACCount = 5
-'''
-
-print(host+':'+format(port))
-
-client = paramiko.SSHClient()
-
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-print('Connecting to host: '+ host +' ...') 
-#client.connect(hostname=host, username=login, password=password, port=port)
 colorama.init(autoreset=True)
 
-def executeOnSSH(commandStr):
-	paramiko.util.log_to_file('/tmp/ssh_paramiko_vm.ssh')
-	client.connect(hostname=host, username=login, password=password, port=port, look_for_keys=False, allow_agent=False)	
-	stdin, stdout, stderr = client.exec_command(commandStr)
-	data = stdout.read() + stderr.read()
-	client.close()
-	time.sleep(0.5)
-	return data.decode("utf-8")
-
-def domainRemove(dom=testingDomain):
-	client.connect(hostname=host, username=login, password=password, port=port, look_for_keys=False, allow_agent=False)
-	chan = client.invoke_shell()
-	chan.send('domain/remove ' +testingDomain+ '\n')
-	buff = ''
-	while not buff.endswith('Are you sure?: yes/no ?> '):
-		resp = chan.recv(9999)
-		buff += resp.decode("utf-8")
-	#print(buff)
-	chan.send('yes\n')
-	buff = ''
-	while not buff.endswith(']:/$ '):
-		resp = chan.recv(9999)
-		buff += resp.decode("utf-8")
-	print('Removing domain...')
-	print(buff)
-	client.close()
-
-def domainDeclare(dom=testingDomain):
-	print('Checking if test domain exist...')
-	returnedFromSSH = executeOnSSH('domain/list')
-	print(returnedFromSSH)
-	if testingDomain in returnedFromSSH: # проверка наличия текста в выводе
-		print('Domain exists... needs to remove')
-		domainRemove(dom)
-	else:
-		print('Domain "'+ dom +'" is not exist... need to create it')
-
-	print('Declaring domain...')
-	returnedFromSSH = executeOnSSH('domain/declare ' + dom + ' --add-domain-admin-privileges --add-domain-user-privileges')
-	print(returnedFromSSH)
-	if 'declared' in returnedFromSSH: # проверка наличия текста в выводе
-		return True
-	else:
-		return False
-
-def checkDomainInit(dom=testingDomain):
-	print('Checking domain creation...')
-	returnedFromSSH = executeOnSSH('domain/' + dom + '/sip/network/info share_set ')
-	print(returnedFromSSH)
-	if 'share_set' in returnedFromSSH:
-		return True
-	else:
-		return False	
-
-def sipTransportSetup(sipIP,sipPort):
-	print('Seting up SIP`s transport')
-	returnedFromSSH = executeOnSSH('domain/' + testingDomain + '/sip/network/set listen_ports list ['+ sipPort +']')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/' + testingDomain + '/sip/network/set node_ip ip-set = ipset node = '+ sipNode +' ip = ' + sipIP)
-	print(returnedFromSSH)
-	if 'successfully changed' in returnedFromSSH:
-		return True
-	else: 
-		return False
-
-def sipUserInfo(dom,sipNumber,sipGroup,complete=False):
-	returnedFromSSH = executeOnSSH('domain/' + dom + '/sip/user/info '+ sipGroup +' '+ sipNumber + '@'+ dom)
-	print(returnedFromSSH)
-	if 'Contacts list is empty' in returnedFromSSH:
-		return True
-	else:
-		return False
-
-
-def subscribersCreate(sipNumber,sipPass,dom,sipGroup,routingCTX):
-	print('Declaring Subscribers:... '+ sipNumber + ' ...')
-	returnedFromSSH = executeOnSSH('domain/' + dom + '/sip/user/declare '+ routingCTX +' '+ sipGroup +' '+ sipNumber+'@'+ dom +' none no_qop_authentication login-as-number '+ sipPass)
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/' + dom + '/sip/user/info '+ sipGroup +' '+ sipNumber + '@'+ dom)
-	print(returnedFromSSH)
-	if 'internal iface name' in returnedFromSSH:
-		return True
-	else:
-		return False
 
 
 def ssActivate(dom=testingDomain):
 	print('Activating services...')	
-	returnedFromSSH = executeOnSSH('cluster/storage/ds1/ss/access-list add ' + dom + ' *')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/enable '+ firstNumber +' voicemail chold ctr call_recording')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/enable '+ secondNumber +' chold ctr call_recording')
-	print(returnedFromSSH)	
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/activate '+ secondNumber +' chold dtmf_sequence_as_flash = false')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/activate '+ secondNumber +' ctr')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/activate '+ secondNumber +' call_recording mode = always_on')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/activate '+ firstNumber +' chold dtmf_sequence_as_flash = false')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/activate '+ firstNumber +' call_recording mode = always_on')
-	print(returnedFromSSH)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/ss/activate '+ firstNumber +' voicemail timeout = 10')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		return True
-	else:
+
+	if not ccn.ssAddAccessAll(dom=testingDomain):
 		return False
 
-def trunkDeclare(dom,trunkName,trunkGroup,routingCTX,sipPort,destSipIP,destSipPort):
-	print('Declaring SIP trunk...')
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/sip/trunk/declare '+ routingCTX +' '+ trunkGroup +' '+ trunkName +' ipset '+ destSipIP +' '+ destSipPort +' sip-proxy '+ sipPort)
-	print(returnedFromSSH)
-	if 'declared' in returnedFromSSH:
-		return True
-	else:
+	if not ccn.ssEnable(dom=testingDomain,subscrNum=firstNumber,ssNames='voicemail chold ctr call_recording clip cnip'):
+		return False
+	if not ccn.ssEnable(dom=testingDomain,subscrNum=secondNumber,ssNames='chold ctr call_recording clip cnip'):
 		return False
 
-def loggingSet(node,logRule,action):
-	print('Set logging of '+ node +' ' + logRule + ' to ' + action )
-	print('This action can take a few minutes. Be patient!')
-	returnedFromSSH = executeOnSSH('node/'+ node +'/log/config rule '+logRule+' '+action)
-	print(returnedFromSSH)
-	if 'Successful' in returnedFromSSH:
-		return True
-	else:
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='chold',ssOptions='dtmf_sequence_as_flash = false'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='ctr'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='clip'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='cnip'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='call_recording',ssOptions='mode = always_on'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='timeout = 10'):
 		return False
 
-def setCoreTraceMode(dom,mode='full_compressed'):
-	print('Set trace mode for domain '+ dom + ' mode: '+mode)
-	returnedFromSSH = executeOnSSH('domain/'+ dom +'/trace/properties/set mode ' + mode)
-	print(returnedFromSSH)
-	if 'successfully' in returnedFromSSH:
-		return True
-	else:
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=secondNumber,ssName='chold',ssOptions='dtmf_sequence_as_flash = false'):
 		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=secondNumber,ssName='ctr'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=secondNumber,ssName='clip'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=secondNumber,ssName='cnip'):
+		return False
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=secondNumber,ssName='call_recording',ssOptions='mode = always_on'):
+		return False
+
+	return True
 
 
 def checkVMMessages(dom,sipNumber,sipGroup):
-	returnedFromSSH = executeOnSSH('domain/'+dom+'/alias/info '+ sipNumber +' '+ sipGroup +' '+ sipNumber +'@'+dom)
+	returnedFromSSH = ccn.executeOnSSH('domain/'+dom+'/alias/info '+ sipNumber +' '+ sipGroup +' '+ sipNumber +'@'+dom)
 	print(returnedFromSSH)
 	if 'Unread message(s): 1' in returnedFromSSH:
 		return True
@@ -258,7 +134,7 @@ def preconfigure():
 	###### - to be removed
 	hRequests = HT.httpTerm(host=host,port='9999',login=login,passwd=password)
 
-	if domainDeclare(testingDomain) :
+	if ccn.domainDeclare(testingDomain) :
 		print(Fore.GREEN + 'Successful domain declare')
 	else :
 		print(Fore.RED + 'Smthing happen wrong with domain declaration...')
@@ -266,87 +142,52 @@ def preconfigure():
 
 	cnt = 0
 	time.sleep(2)
-	while not checkDomainInit(testingDomain):					# проверяем инициализацию домена
+	while not ccn.checkDomainInit(testingDomain):					# проверяем инициализацию домена
 		print(Fore.YELLOW + 'Not inited yet...')	
 		cnt += 1
 		if cnt > 5:
 			print(Fore.RED + "Test domain wasn't inited :(")
 			return False
-			#sys.exit(1)
 		time.sleep(2)
 
-	if sipTransportSetup(testingDomainSIPaddr,testingDomainSIPport) :
+	if ccn.sipTransportSetup(dom=testingDomain,sipIP=testingDomainSIPaddr,sipPort=testingDomainSIPport):
 		print(Fore.GREEN + 'Successful SIP transport declare')
 	else :
 		print(Fore.RED + 'Smthing happen wrong with SIP network setup...')
 		return False
-		#sys.exit(1)
-	'''
-	if hRequests.routeCtxAdd(domainName=testingDomain,ctxString=ctx) == 201:
-		print(Fore.GREEN + 'Successful declaration routing CTX')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with routing declaration...')
-	#time.sleep(5)
-	'''
+
 	routingName = 'default_routing'
-	if subscribersCreate(sipNumber=firstNumber,sipPass=masterSIPpass,dom=testingDomain,sipGroup=SIPgroup,routingCTX=routingName):
+	if ccn.subscribersCreate(dom=testingDomain,sipNumber=firstNumber,sipPass=masterSIPpass,sipGroup=SIPgroup,routingCTX=routingName):
 	 	print(Fore.GREEN + 'Successful VM subscriber creation')
 	else:
 		print(Fore.RED + 'Smthing happen wrong with subscribers creation...')
-		#return False
+		return False
 
-	if subscribersCreate(sipNumber=secondNumber,sipPass=secondNumber,dom=testingDomain,sipGroup=SIPgroup,routingCTX=routingName):
+	if ccn.subscribersCreate(dom=testingDomain,sipNumber=secondNumber,sipPass=secondNumber,sipGroup=SIPgroup,routingCTX=routingName):
 	 	print(Fore.GREEN + 'Successful Secondary subscriber creation')
 	else:
 		print(Fore.RED + 'Smthing happen wrong with subscriber creation...')
-		#return False
+		return False
 
-	if subscribersCreate(sipNumber=thirdNumber,sipPass=thirdNumber,dom=testingDomain,sipGroup=SIPgroup,routingCTX=routingName):
+	if ccn.subscribersCreate(dom=testingDomain,sipNumber=thirdNumber,sipPass=thirdNumber,sipGroup=SIPgroup,routingCTX=routingName):
 	 	print(Fore.GREEN + 'Successful Third subscriber creation')
 	else:
 		print(Fore.RED + 'Smthing happen wrong with subscriber creation...')
-		#return False
+		return False
 	
-	'''
-	if loggingSet(node=coreNode,logRule='all_tc',action='on'):
-	 	print(Fore.GREEN + 'Logging of '+coreNode+ ' all_tc switched to on')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with logging switching...')
-	'''
-
 	if ssActivate(testingDomain):
 		print(Fore.GREEN + 'Successful Services activated')
 	else:
 		print(Fore.RED + 'Smthing happen wrong activating services...')
 		return False
-		#sys.exit(1)
 
-	if setCoreTraceMode(dom=testingDomain):
-		print(Fore.GREEN + 'Traces enabled')
+	if ccn.setTraceMode(dom=testingDomain,traceMode='full_compressed'):
+		print(Fore.GREEN + 'core traces successfully enabled')
 	else:
-		print(Fore.RED + 'Failed enabling traces')
+		print(Fore.RED + 'Smthing happen wrong with changing core trace mode...')
 
-
-	'''
-	if setSysIfaceRoutung(testingDomain,tcRoutingName):
-		print(Fore.GREEN + 'Successful set routing for sys:teleconference')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with set routing for sys:teleconference')
-		return False
-		#sys.exit(1)
-
-
-	if trunkDeclare(dom=testingDomain,trunkName=tcExtTrunkName,trunkGroup='test.trunk',routingCTX=tcRoutingName,sipPort=testingDomainSIPport,destSipIP=tcExtTrunkIP,destSipPort=tcExtTrunkPort):
-		print(Fore.GREEN + 'Successful SIP trunk declare')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with SIP trunk declaration')
-		return False
-		#sys.exit(1)
-	'''
 	return True
 
-	###### - to be removed
-	#'''
 
 def UACRegister():
 	global subscrUA
@@ -391,31 +232,11 @@ def leaveVMTest(releseWithDTMF=False):
 	callDuration = 30
 
 
-	print('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
+	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
 
 	subscrUA[1].makeCall(phoneURI=firstNumber+'@'+testingDomain)
 
 	phase=0
-
-	'''
-	print('waiting for answer...')
-	cnt = 0
-	Answered = False
-	while cnt < 50:		
-		time.sleep(0.1)
-		if subscrUA[0].uaCurrentCallInfo.state == 5:
-			Answered = True
-			break			
-		print('.',end='')		
-		cnt += 1
-
-	if not Answered:
-		print('Call not recieved')
-		return False
-	else:
-		print('Call answered')
-
-	'''
 
 	while cnt < callDuration:	
 		time.sleep(1)
@@ -457,7 +278,7 @@ def checkVMbox():
 	readMsgBefore = 0
 	vmMessageLeaveTimeout = 10
 	
-	print('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check new message')
+	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check new message')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
@@ -474,7 +295,7 @@ def checkVMbox():
 		cnt += 1
 
 	if not Answered:
-		print('Call not established')
+		print(Fore.YELLOW +'Call not established')
 		return False
 	else:
 		print('Call established')
@@ -514,7 +335,7 @@ def checkVMbox():
 
 	
 
-	returnedFromSSH = executeOnSSH('domain/'+testingDomain+'/alias/info '+ firstNumber +' '+ SIPgroup +' '+ firstNumber +'@'+testingDomain)
+	returnedFromSSH = ccn.executeOnSSH('domain/'+testingDomain+'/alias/info '+ firstNumber +' '+ SIPgroup +' '+ firstNumber +'@'+testingDomain)
 	print(returnedFromSSH)
 	if 'Unread message(s): 0' in returnedFromSSH:
 		print(Fore.GREEN +'Message successful read')
@@ -527,7 +348,7 @@ def callbackToVMcgpn():
 	cnt = 0
 	vmMessageLeaveTimeout = 10
 	
-	print('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check old message and call to its owner')
+	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check old message and call to its owner')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
@@ -544,7 +365,7 @@ def callbackToVMcgpn():
 		cnt += 1
 
 	if not Answered:
-		print('Call not established')
+		print(Fore.YELLOW +'Call not established')
 		return False
 	else:
 		print('Call established')
@@ -561,7 +382,7 @@ def callbackToVMcgpn():
 	time.sleep(4)
 
 	if subscrUA[0].uaCurrentCallInfo.state != 5:
-		print('Subscriber ' + subscrUA[0].uaAccountInfo.uri + ' is not in call state')
+		print(Fore.YELLOW +'Subscriber ' + subscrUA[0].uaAccountInfo.uri + ' is not in call state')
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
@@ -578,7 +399,7 @@ def callbackToVMcgpn():
 		cnt += 1
 
 	if not Answered:
-		print('Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not in call state')
+		print(Fore.YELLOW +'Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not in call state')
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
@@ -591,7 +412,7 @@ def callbackToVMcgpn():
 	time.sleep(1)
 
 	if subscrUA[1].uaCurrentCallInfo.state == 5:
-		print('Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not released')
+		print(Fore.YELLOW +'Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not released')
 		#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
@@ -601,7 +422,7 @@ def callbackToVMcgpn():
 
 def setVMPasswd():
 	global subscrUA
-	print('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and set new password')
+	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and set new password')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
@@ -662,7 +483,7 @@ def setVMPasswd():
 	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 	time.sleep(2)
 
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
+	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
 	print(returnedFromSSH)
 
 	if 'password = "1234"' in returnedFromSSH:
@@ -674,7 +495,7 @@ def setVMPasswd():
 
 def removeVMPasswd():
 	global subscrUA
-	print('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and remove VM password')
+	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and remove VM password')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
@@ -737,7 +558,7 @@ def removeVMPasswd():
 	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 	time.sleep(2)
 
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
+	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
 	print(returnedFromSSH)
 
 	if 'password = []' in returnedFromSSH:
@@ -750,7 +571,7 @@ def removeVMPasswd():
 
 def getVMfromExtNumber():
 	global subscrUA
-	print('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91# ')
+	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91# ')
 	subscrUA[1].makeCall(phoneURI='*91#@'+testingDomain)
 
 	phase = 0
@@ -816,7 +637,7 @@ def getVMfromExtNumber():
 
 def getVMfromExtNumberType2():
 	global subscrUA
-	print('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91*1510# ')
+	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91*1510# ')
 	subscrUA[1].makeCall(phoneURI='*91*1510#@'+testingDomain)
 
 	phase = 0
@@ -868,11 +689,8 @@ def VMleaveOnBusy():
 	callDuration = 30
 
 	print(Style.BRIGHT +'Setting busy property')
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/activate '+ firstNumber +' voicemail busy = true')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		pass
-	else:
+	
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='busy = true'):
 		print(Fore.RED + 'Change "busy" property failed')
 		return False
 
@@ -937,11 +755,9 @@ def VMleaveOnBusy():
 
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/activate '+ firstNumber +' voicemail busy = false')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		pass
-	else:
+
+
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='busy = false'):
 		print(Fore.RED + 'Change "busy" property failed')
 		return False
 
@@ -958,11 +774,8 @@ def VMleaveUnconditional():
 	callDuration = 30
 
 	print(Style.BRIGHT +'Setting unconditional property')
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/activate '+ firstNumber +' voicemail unconditional = true')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		pass
-	else:
+
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='unconditional = true'):
 		print(Fore.RED + 'Change "unconditional" property failed')
 		return False
 
@@ -1004,11 +817,8 @@ def VMleaveUnconditional():
 
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/activate '+ firstNumber +' voicemail unconditional = false')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		pass
-	else:
+
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='unconditional = false'):
 		print(Fore.RED + 'Change "unconditional" property failed')
 		return False
 
@@ -1025,11 +835,8 @@ def VMleaveOnUnavailable():
 	callDuration = 30
 
 	print(Style.BRIGHT +'Setting out_of_service property')
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/activate '+ firstNumber +' voicemail out_of_service = true')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		pass
-	else:
+
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='out_of_service = true'):
 		print(Fore.RED + 'Change "out_of_service" property failed')
 		return False
 
@@ -1037,9 +844,8 @@ def VMleaveOnUnavailable():
 	subscrUA[0].acc.set_registration(renew=False)
 
 	time.sleep(1)
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/sip/user/info '+ SIPgroup +' ' + firstNumber +'@'+testingDomain)
-	print(returnedFromSSH)
-	
+
+	ccn.subscriberSipInfo(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup,complete=False)
 
 	print(Style.BRIGHT +'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
 
@@ -1075,11 +881,9 @@ def VMleaveOnUnavailable():
 
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/activate '+ firstNumber +' voicemail out_of_service = false')
-	print(returnedFromSSH)
-	if 'Success:' in returnedFromSSH:
-		pass
-	else:
+
+
+	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='out_of_service = false'):
 		print(Fore.RED + 'Change "out_of_service" property failed')
 		return False
 
@@ -1087,16 +891,13 @@ def VMleaveOnUnavailable():
 	subscrUA[0].acc.set_registration(renew=True)
 	time.sleep(1)
 
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/sip/user/info '+ SIPgroup +' ' + firstNumber +'@'+testingDomain)
-	print(returnedFromSSH)
-
+	ccn.subscriberSipInfo(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup,complete=False)
 
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
 		print(Fore.GREEN +'Message is succesful left')
 		return True
 	else:		
 		return False
-
 
 
 def VMpropertyChange(VMpropertyName,enabling=True):
@@ -1139,7 +940,7 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 		cnt += 1
 
 	if not Answered:
-		print('Call not established')
+		print(Fore.YELLOW +'Call not established')
 		return False
 	else:
 		print('Call established')
@@ -1175,7 +976,7 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')		
 		return False
 
-	returnedFromSSH = executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
+	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
 	print(returnedFromSSH)
 
 	if checkStr in returnedFromSSH:
@@ -1186,6 +987,14 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 
 	return True
 
+def testHeader(headerText,headerColoramaColor=Style.BRIGHT):
+	for i in range(len(headerText)+4):
+		print(headerColoramaColor + '=', end='')
+	print('')
+	print(headerColoramaColor + '  ' + headerText)
+	for i in range(len(headerText)+4):
+		print(headerColoramaColor + '=', end='')
+	print('')
 
 
 #############################################################################################
@@ -1198,7 +1007,7 @@ failure = False
 testReport = []
 
 #'''
-print('-Start preconfiguration test-')
+testHeader('-Start preconfiguration test-')
 if not preconfigure():
 	print(Fore.RED + 'Preconfiguration test failed')
 	failure = False
@@ -1210,7 +1019,7 @@ else:
 	time.sleep(1)
 #'''
 
-print(Style.BRIGHT + '-Starting register test-')
+testHeader('-Starting register test-')
 if not UACRegister():
 	resStr = 'Register test failed'
 	print(Fore.RED + resStr)
@@ -1224,7 +1033,7 @@ else:
 #'''
 
 #'''
-print(Style.BRIGHT + '-Start leaving VM on no reply test-')
+testHeader('-Start leaving VM on no reply test-')
 if not leaveVMTest():
 	resStr = 'Leaving VM on no reply test failed'
 	print(Fore.RED + resStr)
@@ -1237,7 +1046,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Checking VM message test-')
+testHeader('-Checking VM message test-')
 if not checkVMbox():
 	resStr = 'Checking VM test failed'
 	print(Fore.RED + resStr)
@@ -1250,7 +1059,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 ######################
-print(Style.BRIGHT + '-Start leaving message on busy test-')
+testHeader('-Start leaving message on busy test-')
 if not VMleaveOnBusy():
 	resStr = 'Leaving VM on busy test failed'
 	print(Fore.RED + resStr)
@@ -1263,7 +1072,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Checking VM message test-')
+testHeader('-Checking VM message test-')
 if not checkVMbox():
 	resStr = 'Checking VM test failed'
 	print(Fore.RED + resStr)
@@ -1277,7 +1086,7 @@ else:
 	time.sleep(1)
 
 ######################
-print(Style.BRIGHT + '-Start leaving message unconditional test-')
+testHeader('-Start leaving message unconditional test-')
 if not VMleaveUnconditional():
 	resStr = 'Leaving VM unconditional test failed'
 	print(Fore.RED + resStr)
@@ -1290,7 +1099,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Checking VM message test-')
+testHeader('-Checking VM message test-')
 if not checkVMbox():
 	resStr = 'Checking VM test failed'
 	print(Fore.RED + resStr)
@@ -1302,10 +1111,9 @@ else:
 	print(Fore.GREEN + resStr)
 	testReport.append(resStr)
 	time.sleep(1)
-#'''
 
 ######################
-print(Style.BRIGHT + '-Start leaving message on out of service test-')
+testHeader('-Start leaving message on out of service test-')
 if not VMleaveOnUnavailable():
 	resStr = 'Leaving VM out of service test failed'
 	print(Fore.RED + resStr)
@@ -1318,7 +1126,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Checking VM message test-')
+testHeader('-Checking VM message test-')
 if not checkVMbox():
 	resStr = 'Checking VM test failed'
 	print(Fore.RED + resStr)
@@ -1332,9 +1140,7 @@ else:
 	time.sleep(1)
 ######################
 
-
-#'''
-print(Style.BRIGHT + '-Callback to VM owner test-')
+testHeader('-Callback to VM owner test-')
 if not callbackToVMcgpn():
 	resStr = 'Callback to VM owner test failed'
 	print(Fore.RED + resStr)
@@ -1348,7 +1154,7 @@ else:
 	time.sleep(1)
 
 
-print(Style.BRIGHT + '-Testing VM password set-')
+testHeader('-Testing VM password set-')
 if not setVMPasswd():
 	resStr = 'VM Password set test failed'
 	print(Fore.RED + resStr)
@@ -1362,7 +1168,7 @@ else:
 	time.sleep(1)
 
 
-print(Style.BRIGHT + '-Testing remote acccess to VM-')
+testHeader('-Testing remote acccess to VM-')
 if not getVMfromExtNumber():
 	resStr = 'Remote access to VM failed'
 	print(Fore.RED + resStr)
@@ -1375,7 +1181,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing remote acccess to VM type 2-')
+testHeader('-Testing remote acccess to VM type 2-')
 if not getVMfromExtNumberType2():
 	resStr = 'Remote access to VM type 2 failed'
 	print(Fore.RED + resStr)
@@ -1389,7 +1195,7 @@ else:
 	time.sleep(1)
 
 
-print(Style.BRIGHT + '-Testing VM password remove-')
+testHeader('-Testing VM password remove-')
 if not removeVMPasswd():
 	resStr = 'VM Password remove test failed'
 	print(Fore.RED + resStr)
@@ -1404,7 +1210,7 @@ else:
 
 
 ################# send_by_email
-print(Style.BRIGHT + '-Testing email property set to true-')
+testHeader('-Testing email property set to true-')
 if not VMpropertyChange(VMpropertyName='send_by_email',enabling=True):
 	resStr = 'VM email property set to true failed'
 	print(Fore.RED + resStr)
@@ -1417,7 +1223,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing email property set to false-')
+testHeader('-Testing email property set to false-')
 if not VMpropertyChange(VMpropertyName='send_by_email',enabling=False):
 	resStr = 'VM email property set to false failed'
 	print(Fore.RED + resStr)
@@ -1430,7 +1236,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 ################# play_message_details
-print(Style.BRIGHT + '-Testing play_message_details property set to true-')
+testHeader('-Testing play_message_details property set to true-')
 if not VMpropertyChange(VMpropertyName='play_message_details',enabling=True):
 	resStr = 'VM play_message_details property set to true failed'
 	print(Fore.RED + resStr)
@@ -1443,7 +1249,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing play_message_details property set to false-')
+testHeader('-Testing play_message_details property set to false-')
 if not VMpropertyChange(VMpropertyName='play_message_details',enabling=False):
 	resStr = 'VM play_message_details property set to false failed'
 	print(Fore.RED + resStr)
@@ -1456,7 +1262,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 ################# busy
-print(Style.BRIGHT + '-Testing busy property set to true-')
+testHeader('-Testing busy property set to true-')
 if not VMpropertyChange(VMpropertyName='busy',enabling=True):
 	resStr = 'VM busy property set to true test failed'
 	print(Fore.RED + resStr)
@@ -1469,7 +1275,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing busy property set to false-')
+testHeader('-Testing busy property set to false-')
 if not VMpropertyChange(VMpropertyName='busy',enabling=False):
 	resStr = 'VM busy property set to false test failed'
 	print(Fore.RED + resStr)
@@ -1482,7 +1288,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 ################# no_reply
-print(Style.BRIGHT + '-Testing no_reply property set to false-')
+testHeader('-Testing no_reply property set to false-')
 if not VMpropertyChange(VMpropertyName='no_reply',enabling=False):
 	resStr = 'VM no_reply property set to true false failed'
 	print(Fore.RED + resStr)
@@ -1495,7 +1301,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing no_reply property set to True-')
+testHeader('-Testing no_reply property set to True-')
 if not VMpropertyChange(VMpropertyName='no_reply',enabling=True):
 	resStr = 'VM no_reply property set to True failed'
 	print(Fore.RED + resStr)
@@ -1508,7 +1314,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 ################# out_of_service
-print(Style.BRIGHT + '-Testing out_of_service property set to false-')
+testHeader('-Testing out_of_service property set to false-')
 if not VMpropertyChange(VMpropertyName='out_of_service',enabling=True):
 	resStr = 'VM out_of_service property set to false test failed'
 	print(Fore.RED + resStr)
@@ -1521,7 +1327,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing out_of_service property set to True-')
+testHeader('-Testing out_of_service property set to True-')
 if not VMpropertyChange(VMpropertyName='out_of_service',enabling=False):
 	resStr = 'VM out_of_service property set to True failed'
 	print(Fore.RED + resStr)
@@ -1534,7 +1340,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 ################# unconditional
-print(Style.BRIGHT + '-Testing unconditional property set to true-')
+testHeader('-Testing unconditional property set to true-')
 if not VMpropertyChange(VMpropertyName='unconditional',enabling=True):
 	resStr = 'VM unconditional property set to true test failed'
 	print(Fore.RED + resStr)
@@ -1547,7 +1353,7 @@ else:
 	testReport.append(resStr)
 	time.sleep(1)
 
-print(Style.BRIGHT + '-Testing unconditional property set to false-')
+testHeader('-Testing unconditional property set to false-')
 if not VMpropertyChange(VMpropertyName='unconditional',enabling=False):
 	resStr = 'VM unconditional property set to false failed'
 	print(Fore.RED + resStr)
@@ -1559,9 +1365,10 @@ else:
 	print(Fore.GREEN + resStr)
 	testReport.append(resStr)
 	time.sleep(1)
-#'''
+#
 
-client.close()
+
+#client.close()
 
 print(Style.BRIGHT + 'Total Results of Voice Mail tests:')
 for reportStr in testReport:
