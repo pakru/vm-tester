@@ -134,9 +134,9 @@ def preconfigure():
 	###### - to be removed
 	hRequests = HT.httpTerm(host=host,port='9999',login=login,passwd=password)
 
-	if ccn.domainDeclare(testingDomain) :
+	if ccn.domainDeclare(testingDomain, removeIfExists = True):
 		print(Fore.GREEN + 'Successful domain declare')
-	else :
+	else:
 		print(Fore.RED + 'Smthing happen wrong with domain declaration...')
 		return False
 
