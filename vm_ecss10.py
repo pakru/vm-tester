@@ -1,48 +1,49 @@
 #!/usr/local/bin/python3.5
 
 #import paramiko
-import time
-import sys
-import os
-import subprocess
-import hc_module.ecss_config_http_commands as HT
+import config, time, sys, logging
+#import subprocess
+
+#import hc_module.ecss_config_http_commands as HT
 import colorama
 from colorama import Fore, Back, Style
-import xml.etree.ElementTree as ET
-import requests
-import signal
+#import xml.etree.ElementTree as ET
+#import requests
+#import signal
 import pjSIP_py.pjUA as pjua
 import ssh_cocon.ssh_cocon as ccn
 
 
-login = str(os.environ.get('COCON_USER'))
-password = str(os.environ.get('COCON_PASS'))
+#login = str(os.environ.get('COCON_USER'))
+#password = str(os.environ.get('COCON_PASS'))
 
-host = str(os.environ.get('SSW_IP'))
-port = int(os.environ.get('COCON_PORT'))
+#host = str(os.environ.get('SSW_IP'))
+#port = int(os.environ.get('COCON_PORT'))
 
-testingDomain = str(os.environ.get('VM_TEST_DOMAIN_NAME'))
-testingDomainSIPport = str( int(os.environ.get('SSW_PORT'))+4 )
-testingDomainSIPaddr = str(os.environ.get('SSW_IP'))
-coreNode='core1@ecss1'
-sipNode='sip1@ecss1'
-dsNode='ds1@ecss1'
+#testingDomain = str(os.environ.get('VM_TEST_DOMAIN_NAME'))
+testingDomain = config.testConfigJson['DomainName']
+testingDomainSIPport = config.testConfigJson['sipListenPort']
+testingDomainSIPaddr = config.testConfigJson['SystemVars'][0]['%%EXTER_IP%%']
+#coreNode='core1@ecss1'
+#sipNode='sip1@ecss1'
+#dsNode='ds1@ecss1'
 #sippPath = str(os.environ.get('SIPP_PATH'))
-sippListenAddress=str(os.environ.get('VM_EXT_TRUNK_IP'))
-sippListenPort='15076'
+pjListenAddress=config.testConfigJson['SystemVars'][0]['%%IP%%']
+pjListenPort=config.testConfigJson['SIPuaListenPort']
 sippMediaListenPort='16016'
 sippMediaListenPortTrunk='17016'
 
-UACCount = 3
-firstNumber = str(os.environ.get('VM_FIRST_NUMBER'))
-secondNumber = str(int(firstNumber) + 1)
-thirdNumber = str(int(firstNumber) + 2)
+UACCount = len(config.testConfigJson['Users'])
+firstNumber = config.testConfigJson['Users'][0]['Number']
+secondNumber = config.testConfigJson['Users'][1]['Number']
+thirdNumber = config.testConfigJson['Users'][2]['Number']
 vmPassword = "1234"
 
 
-masterSIPpass = str(os.environ.get('VM_FIRST_NUMBER'))
-SIPgroup = str(os.environ.get('SIP_GROUP'))
-
+#masterSIPpass = str(os.environ.get('VM_FIRST_NUMBER'))
+SIPgroup = config.testConfigJson['Users'][0]['SipGroup']
+testResultsList = []
+failure = False
 
 colorama.init(autoreset=True)
 
@@ -98,6 +99,7 @@ def checkVMMessages(dom,sipNumber,sipGroup):
 #############################################################################################
 
 def preconfigure():
+	logging.info('Preconfiguration start')
 	cnt=0
 	'''
 	ctx= """<context domain=\""""+ testingDomain +"""\" digitmap="auto" name=\""""+ tcRoutingName+ """\">
@@ -132,7 +134,7 @@ def preconfigure():
 	'''
 
 	###### - to be removed
-	hRequests = HT.httpTerm(host=host,port='9999',login=login,passwd=password)
+	#hRequests = HT.httpTerm(host=host,port='9999',login=login,passwd=password)
 
 	if ccn.domainDeclare(testingDomain, removeIfExists = True):
 		print(Fore.GREEN + 'Successful domain declare')
@@ -157,24 +159,41 @@ def preconfigure():
 		return False
 
 	routingName = 'default_routing'
-	if ccn.subscribersCreate(dom=testingDomain,sipNumber=firstNumber,sipPass=masterSIPpass,sipGroup=SIPgroup,routingCTX=routingName):
-	 	print(Fore.GREEN + 'Successful VM subscriber creation')
+
+	for i in range(UACCount):
+		if ccn.subscribersCreate(dom=testingDomain, sipNumber=config.testConfigJson['Users'][i]['Number'],
+								 sipPass=config.testConfigJson['Users'][i]['Password'], sipGroup=SIPgroup,
+								 routingCTX=routingName):
+			print(Fore.GREEN + 'Successful VM subscriber creation')
+			logging.info('Successful VM subscriber creation')
+		else:
+			print(Fore.RED + 'Smthing happen wrong with subscribers creation...')
+			logging.error('Failed to create subscriber')
+			return False
+
+	'''
+	if ccn.subscribersCreate(dom=testingDomain,sipNumber=config.testConfigJson['Users'][0]['Number'],
+							 sipPass=config.testConfigJson['Users'][0]['Password'],sipGroup=SIPgroup,routingCTX=routingName):
+		print(Fore.GREEN + 'Successful VM subscriber creation')
 	else:
 		print(Fore.RED + 'Smthing happen wrong with subscribers creation...')
 		return False
 
-	if ccn.subscribersCreate(dom=testingDomain,sipNumber=secondNumber,sipPass=secondNumber,sipGroup=SIPgroup,routingCTX=routingName):
-	 	print(Fore.GREEN + 'Successful Secondary subscriber creation')
+	if ccn.subscribersCreate(dom=testingDomain,sipNumber=config.testConfigJson['Users'][1]['Number'],
+							 sipPass=config.testConfigJson['Users'][1]['Password'],sipGroup=SIPgroup,routingCTX=routingName):
+		print(Fore.GREEN + 'Successful Secondary subscriber creation')
 	else:
 		print(Fore.RED + 'Smthing happen wrong with subscriber creation...')
 		return False
 
-	if ccn.subscribersCreate(dom=testingDomain,sipNumber=thirdNumber,sipPass=thirdNumber,sipGroup=SIPgroup,routingCTX=routingName):
-	 	print(Fore.GREEN + 'Successful Third subscriber creation')
+	if ccn.subscribersCreate(dom=testingDomain,sipNumber=config.testConfigJson['Users'][2]['Number'],
+							 sipPass=config.testConfigJson['Users'][2]['Password'],sipGroup=SIPgroup,routingCTX=routingName):
+		print(Fore.GREEN + 'Successful Third subscriber creation')
 	else:
 		print(Fore.RED + 'Smthing happen wrong with subscriber creation...')
 		return False
-	
+	'''
+
 	if ssActivate(testingDomain):
 		print(Fore.GREEN + 'Successful Services activated')
 	else:
@@ -193,20 +212,22 @@ def UACRegister():
 	global subscrUA
 
 	for i in range(0, UACCount):
-		subscrNum = str(int(firstNumber)+i)
+		#subscrNum = str(int(firstNumber)+i)
 		if i == 0:
 			autoAns = False  # autoanswer is false for subscriber with VM
 		else:
 			autoAns = True
-		subscrUA.append(pjua.SubscriberUA(domain=testingDomain,username=subscrNum,passwd=subscrNum,sipProxy=testingDomainSIPaddr+':'+testingDomainSIPport,displayName='Test UA'+str(i),uaIP=sippListenAddress,regExpiresTimeout=900,autoAnswer=autoAns))
-
-	print(Fore.GREEN + 'All UA Registered')
+		subscrUA.append(pjua.SubscriberUA(domain=testingDomain,username=config.testConfigJson['Users'][i]['Number'],
+										  passwd=config.testConfigJson['Users'][i]['Password'],
+										  sipProxy=testingDomainSIPaddr+':'+testingDomainSIPport,displayName='Test UA'+str(i),
+										  uaIP=pjListenAddress,regExpiresTimeout=900,autoAnswer=autoAns))
 
 	allCliRegistered = False
 	cnt = 0
 	while not allCliRegistered:
 		if cnt > 50:		
 			print(Fore.RED + 'Some client UAs failed to register!')
+			logging.error('Some client UAs failed to register!')
 			for i in range(0,UACCount):
 				print(str(subscrUA[i].uaAccountInfo.uri) + ' state: ' + str(subscrUA[i].uaAccountInfo.reg_status) + ' - ' + str(subscrUA[i].uaAccountInfo.reg_reason))
 			return False
@@ -233,6 +254,7 @@ def leaveVMTest(releseWithDTMF=False):
 
 
 	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
+	logging.info('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
 
 	subscrUA[1].makeCall(phoneURI=firstNumber+'@'+testingDomain)
 
@@ -258,16 +280,19 @@ def leaveVMTest(releseWithDTMF=False):
 	if releseWithDTMF:
 		subscrUA[1].sendInbandDTMF(dtmfDigit='#')
 		print('DTMF # sent. Waiting for release from ssw...')
+		logging.info('DTMF # sent. Waiting for release from ssw...')
 		while subscrUA[0].uaCurrentCallInfo.state != 6:
 			cnt += 1
 			if cnt > 5:
 				print(Fore.RED +'SSW didnt released on DTMF')
+				logging.error('SSW didnt relesed call on # DTMF')
 				return False
 	else:
 		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
 		print(Fore.GREEN +'Message is succesful left')
+		logging.info('Message is succesful left')
 		return True
 	else:		
 		return False
@@ -279,6 +304,7 @@ def checkVMbox():
 	vmMessageLeaveTimeout = 10
 	
 	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check new message')
+	logging.info('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check new message')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
@@ -296,9 +322,11 @@ def checkVMbox():
 
 	if not Answered:
 		print(Fore.YELLOW +'Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 	time.sleep(2)
 	print('Dialing 1 and wait...')
@@ -321,6 +349,7 @@ def checkVMbox():
 
 	if not failed:
 		print('DTMF # sent. Waiting for release from ssw...')
+		logging.info('DTMF # sent. Waiting for release from ssw...')
 		subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	else:
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
@@ -331,6 +360,7 @@ def checkVMbox():
 		print('.',end='')
 		if cnt > 10:
 			print(Fore.RED +'SSW didnt released on DTMF')
+			logging.error('SSW didnt relesed call on # DTMF')
 			return False
 
 	
@@ -339,8 +369,10 @@ def checkVMbox():
 	print(returnedFromSSH)
 	if 'Unread message(s): 0' in returnedFromSSH:
 		print(Fore.GREEN +'Message successful read')
+		logging.info('Message successful read')
 		return True
 	else:
+		logging.info('Failed to read VM message')
 		return False
 
 def callbackToVMcgpn():
@@ -349,11 +381,13 @@ def callbackToVMcgpn():
 	vmMessageLeaveTimeout = 10
 	
 	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check old message and call to its owner')
+	logging.info('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and check old message and call to its owner')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
 
 	print('waiting for answer...')
+	logging.info('Waiting for answer...')
 	cnt = 0
 	Answered = False
 	while cnt < 50:		
@@ -366,9 +400,11 @@ def callbackToVMcgpn():
 
 	if not Answered:
 		print(Fore.YELLOW +'Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 	time.sleep(2)
 	print('Dialing 1 and wait...')
@@ -383,6 +419,7 @@ def callbackToVMcgpn():
 
 	if subscrUA[0].uaCurrentCallInfo.state != 5:
 		print(Fore.YELLOW +'Subscriber ' + subscrUA[0].uaAccountInfo.uri + ' is not in call state')
+		logging.error('Subscriber ' + subscrUA[0].uaAccountInfo.uri + ' is not in call state')
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
@@ -400,19 +437,23 @@ def callbackToVMcgpn():
 
 	if not Answered:
 		print(Fore.YELLOW +'Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not in call state')
+		logging.error('Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not in call state')
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
 	else:
 		print('Call successful established')
+		logging.info('Call successful established')
 	
 
 	print('Releasing call...')
+	logging.info('Releasing call...')
 	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 	time.sleep(1)
 
 	if subscrUA[1].uaCurrentCallInfo.state == 5:
 		print(Fore.YELLOW +'Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not released')
+		logging.error('Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not released')
 		#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
@@ -423,11 +464,13 @@ def callbackToVMcgpn():
 def setVMPasswd():
 	global subscrUA
 	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and set new password')
+	logging.info('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and set new password')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
 
 	print('waiting for answer...')
+	logging.info('Waiting for answer...')
 	cnt = 0
 	Answered = False
 	while cnt < 50:		
@@ -440,9 +483,11 @@ def setVMPasswd():
 
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 	time.sleep(2)
 	print('Dialing 2 and wait...')
@@ -458,6 +503,7 @@ def setVMPasswd():
 	subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 	print('Dialing new password '+ vmPassword +' and wait...')
+	logging.info('Dialing new password '+ vmPassword +' and wait...')
 	for k in range(0,len(vmPassword)):
 		print('Dialing ' + vmPassword[k])
 		subscrUA[0].sendInbandDTMF(dtmfDigit=vmPassword[k])
@@ -467,6 +513,7 @@ def setVMPasswd():
 	subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 	print('Dialing confirm new password '+ vmPassword +' and wait...')
+	logging.info('Dialing confirm new password '+ vmPassword +' and wait...')
 	for k in range(0,len(vmPassword)):
 		print('Dialing ' + vmPassword[k])
 		subscrUA[0].sendInbandDTMF(dtmfDigit=vmPassword[k])
@@ -477,30 +524,35 @@ def setVMPasswd():
 	time.sleep(2)
 	if subscrUA[0].uaCurrentCallInfo.state != 5:
 		print(Fore.RED + subscrUA[0].uaAccountInfo.uri + ' in wrong state!')
+		logging.error(subscrUA[0].uaAccountInfo.uri + ' in wrong state!')
 		return False
 
 	print('Releasing from VM menu')
+	logging.info('Releasing from VM menu')
 	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 	time.sleep(2)
 
 	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
 	print(returnedFromSSH)
 
-	if 'password = "1234"' in returnedFromSSH:
+	if 'password = "'+vmPassword+'"' in returnedFromSSH:
 		print(Fore.GREEN + 'It seems that password for VM is set')
+		logging.info('It seems that password for VM is set')
 		return True
 	else:
+		logging.error('Failed to set VM password')
 		return False
-	return True
 
 def removeVMPasswd():
 	global subscrUA
 	print(Style.BRIGHT + 'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and remove VM password')
+	logging.info('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# and remove VM password')
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	phase = 0
 
 	print('waiting for answer...')
+	logging.info('Waiting for answer...')
 	cnt = 0
 	Answered = False
 	while cnt < 50:		
@@ -513,11 +565,14 @@ def removeVMPasswd():
 
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 	print('Dialing VM password')
+	logging.info('Dialing VM password')
 	time.sleep(2)
 	for k in range(0,len(vmPassword)):
 		print('Dialing ' + vmPassword[k])
@@ -535,7 +590,8 @@ def removeVMPasswd():
 	print('Dialing 1 and wait...')
 	subscrUA[0].sendInbandDTMF(dtmfDigit='1')
 	time.sleep(2)
-	print('Dialing old password 1234 # and wait...')
+	print('Dialing old password '+ vmPassword +' # and wait...')
+	logging.info('Dialing old password '+ vmPassword +' # and wait...')
 	for k in range(0,len(vmPassword)):
 		print('Dialing ' + vmPassword[k])
 		subscrUA[0].sendInbandDTMF(dtmfDigit=vmPassword[k])
@@ -544,9 +600,11 @@ def removeVMPasswd():
 	subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 	print('Dialing new password # and wait...')
+	logging.info('Dialing new password # and wait...')
 	subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 	print('Dialing confirm new password # and wait...')
+	logging.info('Dialing confirm new password # and wait...')
 	subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 
@@ -563,20 +621,21 @@ def removeVMPasswd():
 
 	if 'password = []' in returnedFromSSH:
 		print(Fore.GREEN + 'It seems that password for VM is removed')
+		logging.info('It seems that password for VM is removed')
 		return True
 	else:
+		logging.error('Failed to remove VM password')
 		return False
-	return True
 
 
 def getVMfromExtNumber():
 	global subscrUA
 	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91# ')
+	logging.info('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91# ')
 	subscrUA[1].makeCall(phoneURI='*91#@'+testingDomain)
 
-	phase = 0
-
 	print('waiting for answer...')
+	logging.info('Waiting for answer...')
 	cnt = 0
 	Answered = False
 	while cnt < 50:		
@@ -589,34 +648,30 @@ def getVMfromExtNumber():
 
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
 
 	time.sleep(2)
 	print('Dialing remote number...')
-	print('Dialing 1...')
-	subscrUA[1].sendInbandDTMF(dtmfDigit='1')
-	time.sleep(1)
-	print('Dialing 5...')
-	subscrUA[1].sendInbandDTMF(dtmfDigit='5')
-	time.sleep(1)
-	print('Dialing 1...')
-	subscrUA[1].sendInbandDTMF(dtmfDigit='1')
-	time.sleep(1)
-	print('Dialing 0...')
-	subscrUA[1].sendInbandDTMF(dtmfDigit='0')
-	time.sleep(1)
+
+	for k in range(len(firstNumber)):
+		print('Dialing ' + firstNumber[k])
+		subscrUA[1].sendInbandDTMF(dtmfDigit=firstNumber[k])
+		time.sleep(1)
+
 	print('Dialing #')
 	subscrUA[1].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(3)
+
 	if subscrUA[1].uaCurrentCallInfo.state != 5:
 		print(Fore.RED + 'The call was released for some reason')
 		return False
 	print('Dialing password...')
 	for k in range(0,len(vmPassword)):
 		print('Dialing ' + vmPassword[k])
-		subscrUA[0].sendInbandDTMF(dtmfDigit=vmPassword[k])
+		subscrUA[1].sendInbandDTMF(dtmfDigit=vmPassword[k])
 		time.sleep(1)
 	time.sleep(3)
 
@@ -637,12 +692,12 @@ def getVMfromExtNumber():
 
 def getVMfromExtNumberType2():
 	global subscrUA
-	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91*1510# ')
-	subscrUA[1].makeCall(phoneURI='*91*1510#@'+testingDomain)
-
-	phase = 0
+	print(Style.BRIGHT + 'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91*'+ firstNumber +'#')
+	logging.info('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to remote voiceMail *91*'+ firstNumber +'#')
+	subscrUA[1].makeCall(phoneURI='*91*'+ firstNumber +'#@'+ testingDomain)
 
 	print('waiting for answer...')
+	logging.info('Waiting for answer...')
 	cnt = 0
 	Answered = False
 	while cnt < 50:		
@@ -655,32 +710,38 @@ def getVMfromExtNumberType2():
 
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 	time.sleep(2)
 	print('Dialing password...')
 	for k in range(0,len(vmPassword)):
 		print('Dialing ' + vmPassword[k])
-		subscrUA[0].sendInbandDTMF(dtmfDigit=vmPassword[k])
+		subscrUA[1].sendInbandDTMF(dtmfDigit=vmPassword[k])
 		time.sleep(1)
 	time.sleep(3)
 
 	if subscrUA[1].uaCurrentCallInfo.state != 5:
 		print(Fore.RED + 'The call was released for some reason')
+		logging.error('The call was released for some reason')
 		return False
 
 	print('Dialing # for exit from VM...')
+	logging.info('Dialing # for exit from VM...')
 	subscrUA[1].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 
 	if subscrUA[1].uaCurrentCallInfo.state == 5:
 		print(Fore.RED + 'The call was not released')
+		logging.error('The call was not released')
 		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')		
 		return False
-
-	return True
+	else:
+		logging.info('The call was successful released')
+		return True
 
 def VMleaveOnBusy():
 	global subscrUA
@@ -688,6 +749,7 @@ def VMleaveOnBusy():
 	vmMessageLeaveTimeout = 15
 	callDuration = 30
 
+	logging.info('Leaving VM on busy number')
 	print(Style.BRIGHT +'Setting busy property')
 	
 	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='busy = true'):
@@ -695,6 +757,7 @@ def VMleaveOnBusy():
 		return False
 
 	print(Style.BRIGHT +'Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to ' + subscrUA[2].uaAccountInfo.uri + ' to make him self busy')
+	logging.info('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to ' + subscrUA[2].uaAccountInfo.uri + ' to make him self busy')
 
 	subscrUA[0].makeCall(phoneURI=thirdNumber+'@'+testingDomain)
 	cnt = 0
@@ -708,13 +771,17 @@ def VMleaveOnBusy():
 		cnt += 1
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
+
 
 	time.sleep(3)
 
 	print(Style.BRIGHT +'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM as busy')
+	logging.info('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM as busy')
 
 	subscrUA[1].makeCall(phoneURI=firstNumber+'@'+testingDomain)
 
@@ -727,6 +794,7 @@ def VMleaveOnBusy():
 			break
 		if subscrUA[0].uaCurrentCallInfo.state != 5:
 			print('VM subscriber have changed state on '+  subscrUA[1].uaAccountInfo.uri + ' incoming call')
+			logging.error('VM subscriber have changed state on '+  subscrUA[1].uaAccountInfo.uri + ' incoming call')
 			subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 			subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 			return False
@@ -734,9 +802,11 @@ def VMleaveOnBusy():
 		cnt += 1
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 
 	cnt = 0
@@ -752,26 +822,29 @@ def VMleaveOnBusy():
 	subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 
-
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
 
-
 	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='busy = false'):
 		print(Fore.RED + 'Change "busy" property failed')
+		logging.error('Change "busy" property failed')
 		return False
 
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
 		print(Fore.GREEN +'Message is succesful left')
+		logging.info('Message is succesful left')
 		return True
-	else:		
+	else:
+		logging.error('Message was not left')
 		return False
+
 
 def VMleaveUnconditional():
 	global subscrUA
 	cnt = 0
 	vmMessageLeaveTimeout = 15
 	callDuration = 30
+	logging.info('Leaving VM Unconditional')
 
 	print(Style.BRIGHT +'Setting unconditional property')
 
@@ -780,6 +853,7 @@ def VMleaveUnconditional():
 		return False
 
 	print(Style.BRIGHT +'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM unconditional')
+	logging.info('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM unconditional')
 
 	subscrUA[1].makeCall(phoneURI=firstNumber+'@'+testingDomain)
 
@@ -798,9 +872,11 @@ def VMleaveUnconditional():
 		cnt += 1
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 
 	cnt = 0
@@ -813,6 +889,7 @@ def VMleaveUnconditional():
 			failed = True
 
 	print(Style.BRIGHT +'VM message left, hanging up')
+	logging.info('VM message left, hanging up')
 	subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 
 	time.sleep(1)
@@ -820,10 +897,12 @@ def VMleaveUnconditional():
 
 	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='unconditional = false'):
 		print(Fore.RED + 'Change "unconditional" property failed')
+		logging.error('Change "busy" property failed')
 		return False
 
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
 		print(Fore.GREEN +'Message is succesful left')
+		logging.info('Message is succesful left')
 		return True
 	else:		
 		return False
@@ -833,7 +912,7 @@ def VMleaveOnUnavailable():
 	cnt = 0
 	vmMessageLeaveTimeout = 15
 	callDuration = 30
-
+	logging.info('Leaving VM on unavailable')
 	print(Style.BRIGHT +'Setting out_of_service property')
 
 	if not ccn.ssActivation(dom=testingDomain,subscrNum=firstNumber,ssName='voicemail',ssOptions='out_of_service = true'):
@@ -848,6 +927,7 @@ def VMleaveOnUnavailable():
 	ccn.subscriberSipInfo(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup,complete=False)
 
 	print(Style.BRIGHT +'Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
+	logging.info('Now ' + subscrUA[1].uaAccountInfo.uri + ' will call to ' + subscrUA[0].uaAccountInfo.uri + ' and leave him a VM')
 
 	subscrUA[1].makeCall(phoneURI=firstNumber+'@'+testingDomain)
 
@@ -862,9 +942,11 @@ def VMleaveOnUnavailable():
 		cnt += 1
 	if not Answered:
 		print('Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 
 	cnt = 0
@@ -896,12 +978,14 @@ def VMleaveOnUnavailable():
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
 		print(Fore.GREEN +'Message is succesful left')
 		return True
-	else:		
+	else:
+		logging.error('Message was not left')
 		return False
 
 
 def VMpropertyChange(VMpropertyName,enabling=True):
 	global subscrUA
+	logging.info('Set VM property ' + VMpropertyName + ' to ' + str(enabling) + ' via voicemail menu')
 
 	if VMpropertyName is 'play_message_details':
 		secondDigit = '2'
@@ -926,9 +1010,11 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 		return False
 
 	print('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# to change property '+ VMpropertyName + ' to '+ str(enabling))
+	logging.info('Now ' + subscrUA[0].uaAccountInfo.uri + ' will call to voiceMail *90# to change property '+ VMpropertyName + ' to '+ str(enabling))
 	subscrUA[0].makeCall(phoneURI='*90#@'+testingDomain)
 
 	print('waiting for answer...')
+	logging.info('Waiting for answer...')
 	cnt = 0
 	Answered = False
 	while cnt < 50:		
@@ -941,9 +1027,11 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 
 	if not Answered:
 		print(Fore.YELLOW +'Call not established')
+		logging.error('Call not established')
 		return False
 	else:
 		print('Call established')
+		logging.info('Call established')
 
 	time.sleep(2)
 	print('Dialing 2 and wait...')
@@ -964,15 +1052,18 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 		checkStr = VMpropertyName +' = false'
 
 	print('Dialing '+dialDigit+' to change '+VMpropertyName+' mode...')
+	logging.info('Dialing '+dialDigit+' to change '+VMpropertyName+' mode...')
 	subscrUA[0].sendInbandDTMF(dtmfDigit=dialDigit)
 	time.sleep(3)
 
 	print('Dialing # for exit from VM...')
+	logging.info('Dialing # for exit from VM...')
 	subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	time.sleep(2)
 
 	if subscrUA[0].uaCurrentCallInfo.state == 5:
 		print(Fore.RED + 'The call was not released')
+		logging.info('The call was not released')
 		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')		
 		return False
 
@@ -981,11 +1072,12 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 
 	if checkStr in returnedFromSSH:
 		print(Fore.GREEN + 'It seems that ' + VMpropertyName + ' is changed to ' + checkStr)
+		logging.info('It seems that ' + VMpropertyName + ' is changed to ' + checkStr)
+		return True
 	else:
 		print(Fore.RED + 'Something wrong with ' + VMpropertyName + ' property change')
+		logging.error('Something wrong with ' + VMpropertyName + ' property change')
 		return False
-
-	return True
 
 def testHeader(headerText,headerColoramaColor=Style.BRIGHT):
 	for i in range(len(headerText)+4):
@@ -996,6 +1088,24 @@ def testHeader(headerText,headerColoramaColor=Style.BRIGHT):
 		print(headerColoramaColor + '=', end='')
 	print('')
 
+def iterTest(testMethod, testName, terminateOnFailure = False):
+	#resultStr = testName
+	#print('Starting '+ testName)
+	#logging.info('Starting '+ testName)
+	if testMethod:
+		res = True
+		resultStr = testName + ' - OK'
+		logging.info(resultStr)
+	else:
+		res = False
+		resultStr = testName + ' - FAILED'
+		logging.error(resultStr)
+		if terminateOnFailure:
+			sys.exit(1)
+	testResultsList.append(resultStr)
+	print(resultStr)
+	return res
+
 
 #############################################################################################
 
@@ -1003,382 +1113,53 @@ subscrUA = []
 firstUA = 0
 secondUA = 0
 thirdUA = 0
-failure = False
-testReport = []
+
+#testResultsList = []
+
 
 #'''
-testHeader('-Start preconfiguration test-')
-if not preconfigure():
-	print(Fore.RED + 'Preconfiguration test failed')
-	failure = False
-	sys.exit(1)
-else:
-	resStr = '-Start preconfiguration done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-#'''
+testResultsList.append(' ------TEST RESULTS------- ')
+#testHeader('-Start preconfiguration test-')
+iterTest(preconfigure(),'Preconfiguration',True)
+failure = failure|(not iterTest(UACRegister(),'SIP register'))
+failure = failure|(not iterTest(leaveVMTest(),'Leaving VM on no reply'))
+failure = failure|(not iterTest(checkVMbox(),'Checking VM message'))
+failure = failure|(not iterTest(VMleaveOnBusy(),'Leaving VM on busy'))
+failure = failure|(not iterTest(checkVMbox(),'Checking VM message'))
+failure = failure|(not iterTest(VMleaveUnconditional(),'Leaving VM unconditional'))
+failure = failure|(not iterTest(checkVMbox(),'Checking VM message'))
+failure = failure|(not iterTest(VMleaveOnUnavailable(),'Leaving VM on out of service'))
+failure = failure|(not iterTest(checkVMbox(),'Checking VM message'))
+failure = failure|(not iterTest(callbackToVMcgpn(),'Callback to VM owner'))
+failure = failure|(not iterTest(setVMPasswd(),'Testing VM password set'))
+failure = failure|(not iterTest(getVMfromExtNumber(),'Remote access to VM'))
+failure = failure|(not iterTest(getVMfromExtNumberType2(),'Remote access to VM type 2'))
+failure = failure|(not iterTest(removeVMPasswd(),'VM password remove'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='send_by_email',enabling=True), 'Testing email property set to true'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='send_by_email',enabling=False), 'Testing email property set to false'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='play_message_details',enabling=True), 'Testing play_message_details property set to true'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='play_message_details',enabling=False), 'Testing play_message_details property set to false'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='busy',enabling=True), 'Testing busy property set to true'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='busy',enabling=False), 'Testing busy property set to false'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='no_reply',enabling=True), 'Testing no_reply property set to true'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='no_reply',enabling=False), 'Testing no_reply property set to false'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='out_of_service',enabling=True), 'Testing out_of_service property set to true'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='out_of_service',enabling=False), 'Testing out_of_service property set to false'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='unconditional',enabling=True), 'Testing unconditional property set to true'))
+failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='unconditional',enabling=False), 'Testing unconditional property set to false'))
 
-testHeader('-Starting register test-')
-if not UACRegister():
-	resStr = 'Register test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	sys.exit(1)
-else:
-	resStr = '-Register test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-#'''
-
-#'''
-testHeader('-Start leaving VM on no reply test-')
-if not leaveVMTest():
-	resStr = 'Leaving VM on no reply test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Leaving VM on no reply test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Checking VM message test-')
-if not checkVMbox():
-	resStr = 'Checking VM test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Checking VM test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-######################
-testHeader('-Start leaving message on busy test-')
-if not VMleaveOnBusy():
-	resStr = 'Leaving VM on busy test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Leaving VM on busy test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Checking VM message test-')
-if not checkVMbox():
-	resStr = 'Checking VM test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Checking VM test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-######################
-testHeader('-Start leaving message unconditional test-')
-if not VMleaveUnconditional():
-	resStr = 'Leaving VM unconditional test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Leaving VM unconditional test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Checking VM message test-')
-if not checkVMbox():
-	resStr = 'Checking VM test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Checking VM test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-######################
-testHeader('-Start leaving message on out of service test-')
-if not VMleaveOnUnavailable():
-	resStr = 'Leaving VM out of service test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Leaving VM out of service test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Checking VM message test-')
-if not checkVMbox():
-	resStr = 'Checking VM test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Checking VM test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-######################
-
-testHeader('-Callback to VM owner test-')
-if not callbackToVMcgpn():
-	resStr = 'Callback to VM owner test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Callback to VM owner test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-
-testHeader('-Testing VM password set-')
-if not setVMPasswd():
-	resStr = 'VM Password set test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM Password set test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-
-testHeader('-Testing remote acccess to VM-')
-if not getVMfromExtNumber():
-	resStr = 'Remote access to VM failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Remote access to VM success!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing remote acccess to VM type 2-')
-if not getVMfromExtNumberType2():
-	resStr = 'Remote access to VM type 2 failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-Remote access to VM type 2 success!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-
-testHeader('-Testing VM password remove-')
-if not removeVMPasswd():
-	resStr = 'VM Password remove test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM Password remove test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)	
-
-
-################# send_by_email
-testHeader('-Testing email property set to true-')
-if not VMpropertyChange(VMpropertyName='send_by_email',enabling=True):
-	resStr = 'VM email property set to true failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM email property set to true test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing email property set to false-')
-if not VMpropertyChange(VMpropertyName='send_by_email',enabling=False):
-	resStr = 'VM email property set to false failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM email property set to false test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-################# play_message_details
-testHeader('-Testing play_message_details property set to true-')
-if not VMpropertyChange(VMpropertyName='play_message_details',enabling=True):
-	resStr = 'VM play_message_details property set to true failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM play_message_details property set to true test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing play_message_details property set to false-')
-if not VMpropertyChange(VMpropertyName='play_message_details',enabling=False):
-	resStr = 'VM play_message_details property set to false failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM play_message_details property set to false test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-################# busy
-testHeader('-Testing busy property set to true-')
-if not VMpropertyChange(VMpropertyName='busy',enabling=True):
-	resStr = 'VM busy property set to true test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM busy property set to true test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing busy property set to false-')
-if not VMpropertyChange(VMpropertyName='busy',enabling=False):
-	resStr = 'VM busy property set to false test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM busy property set to false test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-################# no_reply
-testHeader('-Testing no_reply property set to false-')
-if not VMpropertyChange(VMpropertyName='no_reply',enabling=False):
-	resStr = 'VM no_reply property set to true false failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM no_reply property set to false done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing no_reply property set to True-')
-if not VMpropertyChange(VMpropertyName='no_reply',enabling=True):
-	resStr = 'VM no_reply property set to True failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM no_reply property set to True done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-################# out_of_service
-testHeader('-Testing out_of_service property set to false-')
-if not VMpropertyChange(VMpropertyName='out_of_service',enabling=True):
-	resStr = 'VM out_of_service property set to false test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM out_of_service property set to false test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing out_of_service property set to True-')
-if not VMpropertyChange(VMpropertyName='out_of_service',enabling=False):
-	resStr = 'VM out_of_service property set to True failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM out_of_service property set to True done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-################# unconditional
-testHeader('-Testing unconditional property set to true-')
-if not VMpropertyChange(VMpropertyName='unconditional',enabling=True):
-	resStr = 'VM unconditional property set to true test failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM unconditional property set to true test done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-
-testHeader('-Testing unconditional property set to false-')
-if not VMpropertyChange(VMpropertyName='unconditional',enabling=False):
-	resStr = 'VM unconditional property set to false failed'
-	print(Fore.RED + resStr)
-	failure = False
-	testReport.append(resStr)
-	#sys.exit(1)
-else:
-	resStr = '-VM unconditional property set to false done!-'
-	print(Fore.GREEN + resStr)
-	testReport.append(resStr)
-	time.sleep(1)
-#
-
-
-#client.close()
 
 print(Style.BRIGHT + 'Total Results of Voice Mail tests:')
-for reportStr in testReport:
+for reportStr in testResultsList:
 	print(reportStr)
 
 
 if failure:
 	print(Fore.RED +'Some tests failed!')
+	logging.error('Some tests failed!')
 	sys.exit(1)
 else:
 	print(Fore.GREEN +'It seems to be all FINE...')
+	logging.info('All test OK!')
 	print('We did it!!')
 	sys.exit(0)
