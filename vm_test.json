@@ -5,14 +5,14 @@
   "TestType" : "Services",
   "TestScript" : "vm_ecss10.py",
   "DomainName" : "vm.domain.test",
-  "sipListenPort" : "5064",
+  "sipListenPort" : "5084",
   "SIPuaListenAddr" : "192.168.118.12",
   "SIPuaListenPort" : "5090",
   "Cocon" : [
     {
       "Login" : "admin",
       "Password" : "password",
-      "Host" : "192.168.118.47",
+      "Host" : "192.168.118.37",
       "Port" : "8023"
     }
   ],
@@ -21,9 +21,9 @@
       "%%MODULE_PATH%%" : "/home/tester/my_python_mods",
       "%%DEV_USER%%" : "admin",
       "%%DEV_PASS%%" : "password",
-      "%%SERV_IP%%" : "192.168.118.47",
+      "%%SERV_IP%%" : "192.168.118.37",
       "%%IP%%": "192.168.118.12",
-      "%%EXTER_IP%%" : "192.168.118.47",
+      "%%EXTER_IP%%" : "192.168.118.37",
       "%%CCN_PORT%%" : "8023",
       "%%LOG_PATH%%": "/tmp/test_log/log"
     }

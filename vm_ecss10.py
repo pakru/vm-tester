@@ -294,7 +294,8 @@ def leaveVMTest(releseWithDTMF=False):
 				logging.error('SSW didnt relesed call on # DTMF')
 				return False
 	else:
-		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+		hangupAll()
+		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
 		print(Fore.GREEN +'Message is succesful left')
@@ -358,7 +359,10 @@ def checkVMbox():
 		logging.info('DTMF # sent. Waiting for release from ssw...')
 		subscrUA[0].sendInbandDTMF(dtmfDigit='#')
 	else:
-		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+		try:
+			subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+		except:
+			pass
 	
 	while subscrUA[0].uaCurrentCallInfo.state != 6:
 		cnt += 1
@@ -424,8 +428,9 @@ def callbackToVMcgpn():
 	if subscrUA[0].uaCurrentCallInfo.state != 5:
 		print(Fore.YELLOW +'Subscriber ' + subscrUA[0].uaAccountInfo.uri + ' is not in call state')
 		logging.error('Subscriber ' + subscrUA[0].uaAccountInfo.uri + ' is not in call state')
-		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
-		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+		hangupAll()
+		#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
 
 	
@@ -442,7 +447,8 @@ def callbackToVMcgpn():
 	if not Answered:
 		print(Fore.YELLOW +'Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not in call state')
 		logging.error('Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not in call state')
-		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+		hangupAll()
+		#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
 	else:
@@ -452,14 +458,18 @@ def callbackToVMcgpn():
 
 	print('Releasing call...')
 	logging.info('Releasing call...')
-	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	try:
+		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	except:
+		pass
 	time.sleep(1)
 
 	if subscrUA[1].uaCurrentCallInfo.state == 5:
 		print(Fore.YELLOW +'Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not released')
 		logging.error('Subscriber ' + subscrUA[1].uaAccountInfo.uri + ' is not released')
 		#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
-		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+		hangupAll()
+		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
 
 	return True
@@ -533,7 +543,11 @@ def setVMPasswd():
 
 	print('Releasing from VM menu')
 	logging.info('Releasing from VM menu')
-	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	try:
+		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	except:
+		pass
+
 	time.sleep(2)
 
 	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
@@ -617,7 +631,10 @@ def removeVMPasswd():
 		return False
 
 	print('Releasing from VM menu')
-	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	try:
+		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	except:
+		pass
 	time.sleep(2)
 
 	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
@@ -689,7 +706,8 @@ def getVMfromExtNumber():
 
 	if subscrUA[1].uaCurrentCallInfo.state == 5:
 		print(Fore.RED + 'The call was not released')
-		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')		
+		hangupAll()
+		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 		return False
 
 	return True
@@ -741,7 +759,8 @@ def getVMfromExtNumberType2():
 	if subscrUA[1].uaCurrentCallInfo.state == 5:
 		print(Fore.RED + 'The call was not released')
 		logging.error('The call was not released')
-		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')		
+		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+		hangupAll()
 		return False
 	else:
 		logging.info('The call was successful released')
@@ -799,8 +818,9 @@ def VMleaveOnBusy():
 		if subscrUA[0].uaCurrentCallInfo.state != 5:
 			print('VM subscriber have changed state on '+  subscrUA[1].uaAccountInfo.uri + ' incoming call')
 			logging.error('VM subscriber have changed state on '+  subscrUA[1].uaAccountInfo.uri + ' incoming call')
-			subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
-			subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+			#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+			#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+			hangupAll()
 			return False
 		print('.',end='')		
 		cnt += 1
@@ -823,8 +843,11 @@ def VMleaveOnBusy():
 			failed = True
 
 	print(Style.BRIGHT +'VM message left, hanging up')
-	subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
-	subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	try:
+		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+	except:
+		pass
 
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
@@ -870,7 +893,9 @@ def VMleaveUnconditional():
 			break
 		if subscrUA[0].uaCurrentCallInfo.state in range(1,5):
 			print('VM subscriber in wrong state')
-			subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+			logging.error('VM subscriber in wrong state')
+			#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+			hangupAll()
 			return False
 		print('.',end='')		
 		cnt += 1
@@ -894,7 +919,10 @@ def VMleaveUnconditional():
 
 	print(Style.BRIGHT +'VM message left, hanging up')
 	logging.info('VM message left, hanging up')
-	subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+	try:
+		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+	except:
+		pass
 
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
@@ -963,7 +991,10 @@ def VMleaveOnUnavailable():
 			failed = True
 
 	print(Style.BRIGHT +'VM message left, hanging up')
-	subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+	try:
+		subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
+	except:
+		pass
 
 	time.sleep(1)
 	print(Style.BRIGHT +'Reset VM properties')
@@ -1068,7 +1099,8 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 	if subscrUA[0].uaCurrentCallInfo.state == 5:
 		print(Fore.RED + 'The call was not released')
 		logging.info('The call was not released')
-		subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')		
+		#subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
+		hangupAll()
 		return False
 
 	returnedFromSSH = ccn.executeOnSSH('domain/'+ testingDomain +'/ss/info ' + firstNumber)
@@ -1082,6 +1114,15 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 		print(Fore.RED + 'Something wrong with ' + VMpropertyName + ' property change')
 		logging.error('Something wrong with ' + VMpropertyName + ' property change')
 		return False
+
+def hangupAll(reason='All calls finish due to failure'):
+	print('Hangup all calls due to failure')
+	logging.info('Hangup all calls due to failure')
+	for pjSubscriber in subscrUA:
+		try:
+			pjSubscriber.uaCurrentCall.hangup(code=200, reason=reason)
+		except Exception as e:
+			pass
 
 def testHeader(headerText,headerColoramaColor=Style.BRIGHT):
 	for i in range(len(headerText)+4):
