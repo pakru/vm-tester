@@ -294,7 +294,7 @@ def leaveVMTest(releseWithDTMF=False):
 				logging.error('SSW didnt relesed call on # DTMF')
 				return False
 	else:
-		hangupAll()
+		hangupAll('VM message left')
 		#subscrUA[1].uaCurrentCall.hangup(code=200, reason='Release')
 
 	if checkVMMessages(dom=testingDomain,sipNumber=firstNumber,sipGroup=SIPgroup):
@@ -1197,6 +1197,7 @@ failure = failure|(not iterTest(VMpropertyChange(VMpropertyName='unconditional',
 print(Style.BRIGHT + 'Total Results of Voice Mail tests:')
 for reportStr in testResultsList:
 	print(reportStr)
+	logging.info(reportStr)
 
 
 if failure:
