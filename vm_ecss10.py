@@ -276,6 +276,12 @@ def leaveVMTest(releseWithDTMF=False):
 		elif phase == 2:
 			pass
 
+	if subscrUA[1].uaCurrentCallInfo.state != 5:
+		print(Fore.YELLOW + subscrUA[1].uaAccountInfo.uri + ' in wrong state!')
+		#failed = True
+		logging.error('Calling subscriber ' + subscrUA[1].uaAccountInfo.uri + ' in wrong state!')
+		return False
+
 	cnt = 0
 	if releseWithDTMF:
 		subscrUA[1].sendInbandDTMF(dtmfDigit='#')
@@ -362,8 +368,6 @@ def checkVMbox():
 			print(Fore.RED +'SSW didnt released on DTMF')
 			logging.error('SSW didnt relesed call on # DTMF')
 			return False
-
-	
 
 	returnedFromSSH = ccn.executeOnSSH('domain/'+testingDomain+'/alias/info '+ firstNumber +' '+ SIPgroup +' '+ firstNumber +'@'+testingDomain)
 	print(returnedFromSSH)
