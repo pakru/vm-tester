@@ -44,8 +44,10 @@ except Exception as e:
 finally:
     testConfigFile.close()
 
-logPath = testConfigJson['SystemVars'][0]['%%LOG_PATH%%']
+logPath = testConfigJson['SystemVars'][0]['%%LOG_PATH%%'] + '/' + testConfigJson['TestScript'][:-3]
 logFile = logPath+'/'+testConfigJson['TestScript'] + '.log'
+if not os.path.exists(logPath):
+    os.makedirs(logPath)
 
 logging.basicConfig(filename=logFile, filemode='w', format = u'%(asctime)-8s %(levelname)-8s [%(module)s -> %(funcName)s:%(lineno)d] %(message)-8s', level = logging.INFO)
 
