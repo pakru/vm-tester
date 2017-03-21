@@ -1151,7 +1151,7 @@ thirdUA = 0
 testResultsList.append(' ------TEST RESULTS------- ')
 #testHeader('-Start preconfiguration test-')
 iterTest(preconfigure(),'Preconfiguration',True)
-failure = failure|(not iterTest(UACRegister(),'SIP register'),True)
+failure = failure|(not iterTest(UACRegister(),'SIP register',True))
 failure = failure|(not iterTest(leaveVMTest(),'Leaving VM on no reply'))
 failure = failure|(not iterTest(checkVMbox(),'Checking VM message'))
 failure = failure|(not iterTest(VMleaveOnBusy(),'Leaving VM on busy'))
