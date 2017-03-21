@@ -24,6 +24,7 @@ import ssh_cocon.ssh_cocon as ccn
 testingDomain = config.testConfigJson['DomainName']
 testingDomainSIPport = config.testConfigJson['sipListenPort']
 testingDomainSIPaddr = config.testConfigJson['SystemVars'][0]['%%EXTER_IP%%']
+testingDomainSIPaddr2 = config.testConfigJson['SystemVars'][0]['%%EXTER_IP2%%']
 #coreNode='core1@ecss1'
 #sipNode='sip1@ecss1'
 #dsNode='ds1@ecss1'
@@ -158,6 +159,12 @@ def preconfigure():
 		print(Fore.RED + 'Smthing happen wrong with SIP network setup...')
 		return False
 
+	if ccn.sipTransportSetup(dom=testingDomain,sipIP=testingDomainSIPaddr2,sipPort=testingDomainSIPport, sipNode='sip1@ecss2'):
+		print(Fore.GREEN + 'Successful secondary SIP transport declare')
+	else :
+		print(Fore.YELLOW + 'Smthing happen wrong with secondary SIP network setup...')
+		#return False
+
 	routingName = 'default_routing'
 
 	for i in range(UACCount):
@@ -170,29 +177,6 @@ def preconfigure():
 			print(Fore.RED + 'Smthing happen wrong with subscribers creation...')
 			logging.error('Failed to create subscriber')
 			return False
-
-	'''
-	if ccn.subscribersCreate(dom=testingDomain,sipNumber=config.testConfigJson['Users'][0]['Number'],
-							 sipPass=config.testConfigJson['Users'][0]['Password'],sipGroup=SIPgroup,routingCTX=routingName):
-		print(Fore.GREEN + 'Successful VM subscriber creation')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with subscribers creation...')
-		return False
-
-	if ccn.subscribersCreate(dom=testingDomain,sipNumber=config.testConfigJson['Users'][1]['Number'],
-							 sipPass=config.testConfigJson['Users'][1]['Password'],sipGroup=SIPgroup,routingCTX=routingName):
-		print(Fore.GREEN + 'Successful Secondary subscriber creation')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with subscriber creation...')
-		return False
-
-	if ccn.subscribersCreate(dom=testingDomain,sipNumber=config.testConfigJson['Users'][2]['Number'],
-							 sipPass=config.testConfigJson['Users'][2]['Password'],sipGroup=SIPgroup,routingCTX=routingName):
-		print(Fore.GREEN + 'Successful Third subscriber creation')
-	else:
-		print(Fore.RED + 'Smthing happen wrong with subscriber creation...')
-		return False
-	'''
 
 	if ssActivate(testingDomain):
 		print(Fore.GREEN + 'Successful Services activated')
@@ -227,9 +211,10 @@ def UACRegister():
 	while not allCliRegistered:
 		if cnt > 50:		
 			print(Fore.RED + 'Some client UAs failed to register!')
-			logging.error('Some client UAs failed to register!')
+			logging.error('Some client UAs failed to register:')
 			for i in range(0,UACCount):
 				print(str(subscrUA[i].uaAccountInfo.uri) + ' state: ' + str(subscrUA[i].uaAccountInfo.reg_status) + ' - ' + str(subscrUA[i].uaAccountInfo.reg_reason))
+				logging.error(str(subscrUA[i].uaAccountInfo.uri) + ' state: ' + str(subscrUA[i].uaAccountInfo.reg_status) + ' - ' + str(subscrUA[i].uaAccountInfo.reg_reason))
 			return False
 		cnt += 1
 		time.sleep(0.1)
@@ -1116,8 +1101,8 @@ def VMpropertyChange(VMpropertyName,enabling=True):
 		return False
 
 def hangupAll(reason='All calls finish due to failure'):
-	print('Hangup all calls due to failure')
-	logging.info('Hangup all calls due to failure')
+	print('Hangup all calls : ' + reason)
+	logging.info('Hangup all calls : ' + reason)
 	for pjSubscriber in subscrUA:
 		try:
 			pjSubscriber.uaCurrentCall.hangup(code=200, reason=reason)
@@ -1166,7 +1151,7 @@ thirdUA = 0
 testResultsList.append(' ------TEST RESULTS------- ')
 #testHeader('-Start preconfiguration test-')
 iterTest(preconfigure(),'Preconfiguration',True)
-failure = failure|(not iterTest(UACRegister(),'SIP register'))
+failure = failure|(not iterTest(UACRegister(),'SIP register'),True)
 failure = failure|(not iterTest(leaveVMTest(),'Leaving VM on no reply'))
 failure = failure|(not iterTest(checkVMbox(),'Checking VM message'))
 failure = failure|(not iterTest(VMleaveOnBusy(),'Leaving VM on busy'))
