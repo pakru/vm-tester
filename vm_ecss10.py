@@ -348,7 +348,9 @@ def checkVMbox():
 			subscrUA[0].uaCurrentCall.hangup(code=200, reason='Release')
 		except:
 			pass
-	
+
+
+	cnt = 0
 	while subscrUA[0].uaCurrentCallInfo.state != 6:
 		cnt += 1
 		time.sleep(0.1)
